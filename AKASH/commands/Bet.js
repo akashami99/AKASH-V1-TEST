@@ -31,9 +31,47 @@ function formatBalance(num) {
   return num + "$";
 }
 
+// --- k/m/b ফরম্যাট হ্যান্ডলার ---
+function parseBet(input) {
+  input = input.toLowerCase().replace(/,/g, '').trim();
+  let multiplier = 1;
+
+  if (input.endsWith('k')) multiplier = 1000;
+  else if (input.endsWith('m')) multiplier = 1000000;
+  else if (input.endsWith('b')) multiplier = 1000000000;
+
+  if (multiplier !== 1) input = input.slice(0, -1);
+
+  let number = parseFloat(input);
+  if (isNaN(number) || number <= 0) return null;
+
+  return number * multiplier;
+}
+
+// --- আউটপুট ডিজাইন ফাংশন ---
+function createBetMessage(win, betAmount, multiplier, newBalance) {
+  let header = "🎲  BET RESULT  🎲";
+  let borderTop = "╭─" + header + "─╮";
+  let borderBottom = "╰─────────────────╯";
+  let lines = [""];
+
+  if (win) {
+    lines.push(`│ 🎉 You won the bet!`);
+    lines.push(`│ 💰 Bet: ${formatBalance(betAmount)}`);
+    lines.push(`│ ⚡ Multiplier: ${multiplier}x`);
+    lines.push(`│ 📌 New Balance: ${formatBalance(newBalance)}`);
+  } else {
+    lines.push(`│ ❌ You lost the bet!`);
+    lines.push(`│ 💰 Bet: ${formatBalance(betAmount)}`);
+    lines.push(`│ 📌 New Balance: ${formatBalance(newBalance)}`);
+  }
+
+  return [borderTop, ...lines, borderBottom].join("\n");
+}
+
 module.exports.config = {
   name: "bet",
-  version: "1.1.0",
+  version: "1.3.0",
   hasPermssion: 0,
   credits: "Akash × ChatGPT",
   description: "Place a bet: win 3x,4x,8x,20x,50x coins!",
@@ -46,10 +84,10 @@ module.exports.run = async function({ api, event, args }) {
   const { senderID, threadID, messageID } = event;
   let balance = getBalance(senderID);
 
-  if (!args[0] || isNaN(args[0])) return api.sendMessage("❌ Please enter a valid bet amount.", threadID, messageID);
+  if (!args[0]) return api.sendMessage("❌ Please enter a bet amount.", threadID, messageID);
 
-  let betAmount = parseInt(args[0]);
-  if (betAmount <= 0) return api.sendMessage("❌ Bet amount must be greater than 0.", threadID, messageID);
+  let betAmount = parseBet(args[0]);
+  if (!betAmount) return api.sendMessage("❌ Please enter a valid bet amount.", threadID, messageID);
   if (betAmount > balance) return api.sendMessage("❌ You don't have enough Coins to bet that amount.", threadID, messageID);
 
   const multipliers = [3, 4, 8, 20, 50];
@@ -62,7 +100,7 @@ module.exports.run = async function({ api, event, args }) {
     balance += winAmount;
     setBalance(senderID, balance);
     return api.sendMessage(
-      `🎉 You won the bet!\n💰 Bet: ${formatBalance(betAmount)}\n⚡ Multiplier: ${chosenMultiplier}x\n📌 New Balance: ${formatBalance(balance)}`,
+      createBetMessage(true, betAmount, chosenMultiplier, balance),
       threadID,
       messageID
     );
@@ -71,7 +109,7 @@ module.exports.run = async function({ api, event, args }) {
     if (balance < 0) balance = 0;
     setBalance(senderID, balance);
     return api.sendMessage(
-      `❌ You lost the bet!\n💰 Bet: ${formatBalance(betAmount)}\n📌 New Balance: ${formatBalance(balance)}`,
+      createBetMessage(false, betAmount, chosenMultiplier, balance),
       threadID,
       messageID
     );
